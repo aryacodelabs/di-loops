@@ -1,0 +1,12 @@
+node_modules/
+dist/
+out/
+bin/
+obj/
+*.vsix
+.DS_Store
+*.log
+coverage/
+.design-temp/
+.vscode-test/
+terminals/

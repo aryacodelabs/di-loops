@@ -1,0 +1,180 @@
+{
+  "name": "di-container-mapper",
+  "displayName": "DI-Loops",
+  "description": "Scan .NET DI registrations and visualize dependency graphs with lifetime mismatch detection.",
+  "version": "0.2.0",
+  "author": "AryaCode Labs",
+  "publisher": "AryaCodeLabs",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aryacodelabs/di-loops"
+  },
+  "homepage": "https://github.com/aryacodelabs/di-loops#readme",
+  "bugs": {
+    "url": "https://github.com/aryacodelabs/di-loops/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Linters"
+  ],
+  "keywords": [
+    "dotnet",
+    "csharp",
+    "dependency-injection",
+    "di",
+    "aspnet"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:**/*.csproj",
+    "workspaceContains:**/*.sln",
+    "onLanguage:csharp"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "diContainerMapper.registrations",
+          "name": "DI Registrations",
+          "when": "workspaceFolderCount > 0"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "diContainerMapper.map",
+        "title": "Map DI Container",
+        "category": "DI-Loops"
+      },
+      {
+        "command": "diContainerMapper.refresh",
+        "title": "Refresh DI Index",
+        "category": "DI-Loops",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "diContainerMapper.showDependencies",
+        "title": "Show DI Dependencies",
+        "category": "DI-Loops"
+      },
+      {
+        "command": "diContainerMapper.revealRegistration",
+        "title": "Go to Registration",
+        "category": "DI-Loops"
+      },
+      {
+        "command": "diContainerMapper.showGraph",
+        "title": "Show Dependency Graph",
+        "category": "DI-Loops"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "diContainerMapper.showDependencies",
+          "when": "editorLangId == csharp",
+          "group": "navigation@99"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "diContainerMapper.refresh",
+          "when": "view == diContainerMapper.registrations",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "diContainerMapper.showGraph",
+          "when": "view == diContainerMapper.registrations && viewItem == registration",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "DI-Loops",
+      "properties": {
+        "diContainerMapper.scanOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Re-scan changed C# files on save."
+        },
+        "diContainerMapper.projectPath": {
+          "type": "string",
+          "default": "",
+          "description": "Limit scanning to this project folder (absolute or workspace-relative)."
+        },
+        "diContainerMapper.scanEntireSolution": {
+          "type": "boolean",
+          "default": false,
+          "description": "When a solution file is found, scan all projects under the solution folder. When false (default), scan only the detected startup project."
+        },
+        "diContainerMapper.roslynHostPath": {
+          "type": "string",
+          "default": "",
+          "description": "Override path to the Roslyn analysis host binary."
+        },
+        "diContainerMapper.useRoslyn": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use Roslyn semantic analysis instead of regex heuristics (v2)."
+        },
+        "diContainerMapper.enableKeyed": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable keyed service registration parsing (v2.5)."
+        },
+        "diContainerMapper.enableWebview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the interactive dependency graph webview."
+        },
+        "diContainerMapper.includeServiceDescriptorReplace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Treat services.Replace(ServiceDescriptor.*<...>()) calls as DI registrations."
+        },
+        "diContainerMapper.excludeTestProjects": {
+          "type": "boolean",
+          "default": true,
+          "description": "Exclude *Tests, *UnitTest, and similar test project folders from scanning."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node scripts/bundle-media.mjs && node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "compile": "npm run build",
+    "lint": "eslint src test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bundle:media": "node scripts/bundle-media.mjs",
+    "build:roslyn": "dotnet build tools/RoslynHost/RoslynHost.csproj -c Release",
+    "publish:roslyn": "dotnet publish tools/RoslynHost/RoslynHost.csproj -c Release -o tools/RoslynHost/bin/Release/net8.0/publish",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.23.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4",
+    "vis-network": "^9.1.9",
+    "vitest": "^2.0.5"
+  }
+}

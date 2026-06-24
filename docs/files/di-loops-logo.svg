@@ -1,0 +1,61 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0078D4"/>
+      <stop offset="100%" stop-color="#8A2BE2"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E1E2E"/>
+      <stop offset="100%" stop-color="#16161F"/>
+    </linearGradient>
+    <linearGradient id="singletonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1AA3FF"/>
+      <stop offset="100%" stop-color="#0078D4"/>
+    </linearGradient>
+    <linearGradient id="scopedGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B16BE0"/>
+      <stop offset="100%" stop-color="#8A2BE2"/>
+    </linearGradient>
+    <linearGradient id="transientGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF9D4D"/>
+      <stop offset="100%" stop-color="#F47521"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+    <marker id="arrowHead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#E8ECF4"/>
+    </marker>
+  </defs>
+
+  <!-- outer ring -->
+  <circle cx="256" cy="256" r="248" fill="url(#bgGrad)" stroke="url(#ringGrad)" stroke-width="10"/>
+
+  <!-- circulating dependency-flow arrows (triangular loop) -->
+  <g fill="none" stroke="#E8ECF4" stroke-width="7" stroke-linecap="round" opacity="0.92">
+    <!-- Singleton (top) -> Transient (bottom-right) -->
+    <path d="M 300 168 C 360 195, 392 250, 380 300" marker-end="url(#arrowHead)"/>
+    <!-- Transient (bottom-right) -> Scoped (bottom-left) -->
+    <path d="M 348 358 C 300 392, 212 392, 164 358" marker-end="url(#arrowHead)"/>
+    <!-- Scoped (bottom-left) -> Singleton (top) -->
+    <path d="M 132 300 C 120 250, 152 195, 212 168" marker-end="url(#arrowHead)"/>
+  </g>
+
+  <!-- Singleton node (top) -->
+  <g filter="url(#softShadow)">
+    <rect x="206" y="96" width="100" height="100" rx="22" fill="url(#singletonGrad)"/>
+    <text x="256" y="159" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="50" font-weight="700" fill="#FFFFFF" text-anchor="middle">S</text>
+  </g>
+
+  <!-- Scoped node (bottom-left) -->
+  <g filter="url(#softShadow)">
+    <rect x="76" y="316" width="100" height="100" rx="22" fill="url(#scopedGrad)"/>
+    <text x="126" y="379" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="44" font-weight="700" fill="#FFFFFF" text-anchor="middle">Sc</text>
+  </g>
+
+  <!-- Transient node (bottom-right) -->
+  <g filter="url(#softShadow)">
+    <rect x="336" y="316" width="100" height="100" rx="22" fill="url(#transientGrad)"/>
+    <text x="386" y="379" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="50" font-weight="700" fill="#FFFFFF" text-anchor="middle">T</text>
+  </g>
+</svg>

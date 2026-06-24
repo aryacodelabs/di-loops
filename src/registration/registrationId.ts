@@ -1,0 +1,42 @@
+/**
+ * Stable registration logical keys — survive line shifts on incremental re-scan.
+ * @see docs/di-container-mapper-design.md — Registration ID stability
+ */
+
+import { createHash } from 'node:crypto';
+import type { Lifetime } from '../types';
+
+export interface RegistrationLogicalKeyInput {
+  scopeRoot: string;
+  fileUri: string;
+  serviceType: string;
+  implementationType: string;
+  lifetime: Lifetime;
+  key?: string;
+}
+
+const KEY_SEPARATOR = '\0';
+
+/**
+ * Computes a stable logical key for a registration.
+ * Hash of: scopeRoot + fileUri + serviceType + implementationType + lifetime + key?
+ */
+export function computeRegistrationLogicalKey(input: RegistrationLogicalKeyInput): string {
+  const payload = [
+    normalizePath(input.scopeRoot),
+    normalizePath(input.fileUri),
+    input.serviceType,
+    input.implementationType,
+    input.lifetime,
+    input.key ?? '',
+  ].join(KEY_SEPARATOR);
+
+  return createHash('sha256').update(payload, 'utf8').digest('hex').slice(0, 16);
+}
+
+function normalizePath(filePath: string): string {
+  return filePath
+    .replace(/\\/g, '/')
+    .replace(/^file:\/\/\/?/i, '')
+    .toLowerCase();
+}
