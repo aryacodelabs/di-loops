@@ -2,7 +2,7 @@
   "name": "di-container-mapper",
   "displayName": "DI-Loops",
   "description": "Scan .NET DI registrations and visualize dependency graphs with lifetime mismatch detection.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": "AryaCode Labs",
   "publisher": "AryaCodeLabs",
   "license": "MIT",

@@ -17,6 +17,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.1] - 2026-06-24
+
+### Added
+
+- **Unregistered** top-level group in the DI Registrations tree for constructor injection sites (e.g. ASP.NET controllers)
+- Injection-site diagnostics on unregistered ctor parameters (`UNREGISTERED_INJECTION`) in the Problems panel
+- `revealIssue` command — navigate from an unregistered injection entry to the parameter in source
+
+### Changed
+
+- Extension icon updated (`media/icon.png`)
+
+### Fixed
+
+- Injection-site scanning now runs on the Roslyn pipeline path (not only regex)
+- Using-aware type lookup for injection sites via host file text
+- Duplicate registration issues no longer incorrectly deduplicated across different registration lines
+
+---
+
 ## [0.2.0] - 2026-06-24
 
 ### Added
@@ -52,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Broader patterns: instance args, lambda factories, `ServiceDescriptor.Replace`
 - Extension branding as **DI-Loops**
 
-[Unreleased]: https://github.com/aryacodelabs/di-loops/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/aryacodelabs/di-loops/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/aryacodelabs/di-loops/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/aryacodelabs/di-loops/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/aryacodelabs/di-loops/releases/tag/v0.1.0
