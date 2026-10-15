@@ -3,13 +3,13 @@ export function canonicalFileKey(uriOrPath: string): string {
   let value = uriOrPath.trim();
   if (/^file:\/\//i.test(value)) {
     try {
-      value = decodeURIComponent(value.replace(/^file:\/\/\/?/i, ''));
+      value = decodeURIComponent(value.replace(/^file:\/\//i, ''));
     } catch {
-      value = value.replace(/^file:\/\/\/?/i, '');
+      value = value.replace(/^file:\/\//i, '');
     }
   }
 
-  if (/^\/[a-z]:\//i.test(value)) {
+  if (/^\/[a-zA-Z]:\//i.test(value)) {
     value = value.slice(1);
   }
 

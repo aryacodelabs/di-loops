@@ -149,5 +149,5 @@ function toFileUri(filePath: string): string {
   if (/^[a-zA-Z]:\//.test(normalized)) {
     return `file:///${normalized}`;
   }
-  return `file://${normalized}`;
+  return `file://${normalized.startsWith('/') ? '' : '/'}${normalized}`;
 }

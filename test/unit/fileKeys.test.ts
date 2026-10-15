@@ -10,6 +10,13 @@ describe('canonicalFileKey', () => {
     expect(canonicalFileKey(`file:///${path}`)).toBe('d:/repo/program.cs');
     expect(canonicalFileKey('file:///d%3A/repo/program.cs')).toBe('d:/repo/program.cs');
   });
+
+  it('normalizes POSIX/Linux file URI and fsPath to the same key with preserved leading slash', () => {
+    const posix = '/home/runner/work/repo/Program.cs';
+    expect(canonicalFileKey(posix)).toBe('/home/runner/work/repo/program.cs');
+    expect(canonicalFileKey(`file://${posix}`)).toBe('/home/runner/work/repo/program.cs');
+    expect(canonicalFileKey(`file:///${posix.replace(/^\//, '')}`)).toBe('/home/runner/work/repo/program.cs');
+  });
 });
 
 describe('mergeRegistrations', () => {
@@ -32,6 +39,31 @@ describe('mergeRegistrations', () => {
     const merged = mergeRegistrations(
       existing,
       [{ fsPath: 'D:\\repo\\Program.cs', toString: () => 'file:///d:/repo/Program.cs' }],
+      [],
+    );
+
+    expect(merged).toHaveLength(0);
+  });
+
+  it('drops registrations on Linux when changedFiles is fsPath and location is file URI', () => {
+    const existing: Registration[] = [
+      {
+        id: 'linux-reg',
+        serviceType: 'IRepo',
+        implementationType: 'Repo',
+        lifetime: 'Scoped',
+        isTryAdd: false,
+        isFactory: false,
+        location: {
+          fileUri: 'file:///home/runner/work/Program.cs',
+          range: { startLine: 1, startCol: 0, endLine: 1, endCol: 10 },
+        },
+      },
+    ];
+
+    const merged = mergeRegistrations(
+      existing,
+      [{ fsPath: '/home/runner/work/Program.cs', toString: () => '/home/runner/work/Program.cs' }],
       [],
     );
 

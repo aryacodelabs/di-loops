@@ -1,4 +1,5 @@
 import type { UriLike } from '../interfaces';
+import { canonicalFileKey } from '../util/fileKeys';
 import type { IScannerFileAccess } from './scannerFileAccess';
 
 /** In-memory file access for unit tests. */
@@ -15,16 +16,17 @@ export class InMemoryScannerFileAccess implements IScannerFileAccess {
   }
 
   async readFile(uri: UriLike): Promise<string> {
-    const candidates = [
-      uri.fsPath,
-      normalizeLookupKey(uri.fsPath),
-      uriPathFromUri(uri.toString()),
-      normalizeLookupKey(uriPathFromUri(uri.toString())),
-    ];
+    const rawCandidates = [uri.fsPath, uri.toString()];
+    for (const raw of rawCandidates) {
+      if (raw && this.files[raw] !== undefined) {
+        return this.files[raw];
+      }
+    }
 
-    for (const key of candidates) {
-      if (key && this.files[key] !== undefined) {
-        return this.files[key];
+    const targetKey = canonicalFileKey(uri.toString() || uri.fsPath);
+    for (const [key, content] of Object.entries(this.files)) {
+      if (canonicalFileKey(key) === targetKey) {
+        return content;
       }
     }
 
@@ -32,18 +34,10 @@ export class InMemoryScannerFileAccess implements IScannerFileAccess {
   }
 }
 
-function normalizeLookupKey(filePath: string): string {
-  return filePath.replace(/\\/g, '/').replace(/^file:\/\/\/?/i, '');
-}
-
 function filePathToUri(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/');
   if (/^[a-zA-Z]:\//.test(normalized)) {
     return `file:///${normalized}`;
   }
-  return `file://${normalized}`;
-}
-
-function uriPathFromUri(uri: string): string {
-  return uri.replace(/^file:\/\/\/?/i, '').replace(/\//g, '\\');
+  return `file://${normalized.startsWith('/') ? '' : '/'}${normalized}`;
 }

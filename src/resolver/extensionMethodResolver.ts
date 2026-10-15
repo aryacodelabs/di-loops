@@ -119,7 +119,7 @@ export class RegexExtensionMethodResolver implements IExtensionMethodResolver {
       const text = await this.fileAccess.readFile(fileUri);
       const body = extractExtensionMethodBody(text, methodName);
       if (body) {
-        return { body, fileUri: fileUri.fsPath.replace(/\\/g, '/') };
+        return { body, fileUri: fileUri.toString() };
       }
     }
 

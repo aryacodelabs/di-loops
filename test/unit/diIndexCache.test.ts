@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DiIndexCacheStore, mergeRegistrations } from '../../src/index/diIndexCache';
+import { canonicalFileKey } from '../../src/util/fileKeys';
 import type { Registration } from '../../src/types';
 
 function registration(id: string, fileUri: string): Registration {
@@ -46,7 +47,7 @@ describe('DiIndexCacheStore', () => {
 
     const state = store.getState();
     expect(state.version).toBe(1);
-    expect(state.fileToRegistrationIds.get('program.cs')).toEqual(['foo']);
+    expect(state.fileToRegistrationIds.get(canonicalFileKey('file:///program.cs'))).toEqual(['foo']);
     expect(store.getRegistrations()).toHaveLength(1);
   });
 });

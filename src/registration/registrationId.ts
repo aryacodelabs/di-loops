@@ -5,6 +5,7 @@
 
 import { createHash } from 'node:crypto';
 import type { Lifetime } from '../types';
+import { canonicalFileKey } from '../util/fileKeys';
 
 export interface RegistrationLogicalKeyInput {
   scopeRoot: string;
@@ -23,8 +24,8 @@ const KEY_SEPARATOR = '\0';
  */
 export function computeRegistrationLogicalKey(input: RegistrationLogicalKeyInput): string {
   const payload = [
-    normalizePath(input.scopeRoot),
-    normalizePath(input.fileUri),
+    canonicalFileKey(input.scopeRoot),
+    canonicalFileKey(input.fileUri),
     input.serviceType,
     input.implementationType,
     input.lifetime,
@@ -32,11 +33,4 @@ export function computeRegistrationLogicalKey(input: RegistrationLogicalKeyInput
   ].join(KEY_SEPARATOR);
 
   return createHash('sha256').update(payload, 'utf8').digest('hex').slice(0, 16);
-}
-
-function normalizePath(filePath: string): string {
-  return filePath
-    .replace(/\\/g, '/')
-    .replace(/^file:\/\/\/?/i, '')
-    .toLowerCase();
 }
