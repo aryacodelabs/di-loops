@@ -165,4 +165,78 @@ builder.Services.AddScoped<IStoreHandler, LiveHandler>();
     const registrations = parseRegistrationsFromText(source, FILE, SCOPE);
     expect(registrations.map((r) => r.serviceType)).toEqual(['WsDataState', 'IStoreHandler']);
   });
+
+  it('parses open-generic and typeof registrations', () => {
+    const source = `
+builder.Services.AddSingleton(typeof(LogHelper<>), typeof(LogHelper<>));
+builder.Services.AddTransient(typeof(IRepository<,>), typeof(Repository<,>));
+builder.Services.AddScoped(typeof(IUserContext));
+builder.Services.TryAddSingleton(typeof(IConfigHelper<>), typeof(ConfigHelper<>));
+builder.Services.Replace(ServiceDescriptor.Singleton(typeof(ILogger<>), typeof(CustomLogger<>)));
+`;
+
+    const registrations = parseRegistrationsFromText(source, FILE, SCOPE);
+    expect(registrations).toHaveLength(5);
+
+    expect(registrations[0]).toMatchObject({
+      serviceType: 'LogHelper<>',
+      implementationType: 'LogHelper<>',
+      lifetime: 'Singleton',
+      isTryAdd: false,
+      isFactory: false,
+    });
+
+    expect(registrations[1]).toMatchObject({
+      serviceType: 'IRepository<,>',
+      implementationType: 'Repository<,>',
+      lifetime: 'Transient',
+      isTryAdd: false,
+    });
+
+    expect(registrations[2]).toMatchObject({
+      serviceType: 'IUserContext',
+      implementationType: 'IUserContext',
+      lifetime: 'Scoped',
+      isTryAdd: false,
+    });
+
+    expect(registrations[3]).toMatchObject({
+      serviceType: 'IConfigHelper<>',
+      implementationType: 'ConfigHelper<>',
+      lifetime: 'Singleton',
+      isTryAdd: true,
+    });
+
+    expect(registrations[4]).toMatchObject({
+      serviceType: 'ILogger<>',
+      implementationType: 'CustomLogger<>',
+      lifetime: 'Singleton',
+      isTryAdd: false,
+    });
+  });
+
+  it('parses keyed typeof registrations when enableKeyed is true', () => {
+    const source = `
+builder.Services.AddKeyedSingleton(typeof(LogHelper<>), "audit", typeof(LogHelper<>));
+builder.Services.TryAddKeyedScoped(typeof(ICache<>), "fast");
+`;
+
+    const registrations = parseRegistrationsFromText(source, FILE, SCOPE, { enableKeyed: true });
+    expect(registrations).toHaveLength(2);
+
+    expect(registrations[0]).toMatchObject({
+      serviceType: 'LogHelper<>',
+      implementationType: 'LogHelper<>',
+      lifetime: 'Singleton',
+      key: 'audit',
+    });
+
+    expect(registrations[1]).toMatchObject({
+      serviceType: 'ICache<>',
+      implementationType: 'ICache<>',
+      lifetime: 'Scoped',
+      isTryAdd: true,
+      key: 'fast',
+    });
+  });
 });

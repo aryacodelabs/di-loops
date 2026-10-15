@@ -191,8 +191,35 @@ public sealed class DiRegistrationScanner
         var isFactory = invocation.ArgumentList.Arguments.Count > 0 &&
             invocation.ArgumentList.Arguments[0].Expression is LambdaExpressionSyntax;
 
-        var serviceType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(0));
-        var implementationType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(1)) ?? serviceType;
+        string? serviceType = null;
+        string? implementationType = null;
+
+        if (symbol.TypeArguments.Length > 0)
+        {
+            serviceType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(0));
+            implementationType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(1)) ?? serviceType;
+        }
+        else
+        {
+            var typeOfArgs = invocation.ArgumentList.Arguments
+                .Select(arg => arg.Expression)
+                .OfType<TypeOfExpressionSyntax>()
+                .ToList();
+
+            if (typeOfArgs.Count > 0)
+            {
+                serviceType = GetFqNameFromTypeOf(typeOfArgs[0], semanticModel);
+                if (typeOfArgs.Count > 1)
+                {
+                    implementationType = GetFqNameFromTypeOf(typeOfArgs[1], semanticModel);
+                }
+                else
+                {
+                    implementationType = serviceType;
+                }
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(serviceType))
         {
             return;
@@ -234,14 +261,46 @@ public sealed class DiRegistrationScanner
             return;
         }
 
-        var firstArgument = invocation.ArgumentList.Arguments.FirstOrDefault();
-        if (firstArgument is null)
+        string? serviceKey = null;
+        string? serviceType = null;
+        string? implementationType = null;
+
+        if (symbol.TypeArguments.Length > 0)
         {
-            return;
+            var firstArgument = invocation.ArgumentList.Arguments.FirstOrDefault();
+            if (firstArgument is null)
+            {
+                return;
+            }
+
+            serviceKey = ExtractServiceKey(firstArgument.Expression, semanticModel);
+            serviceType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(0));
+            implementationType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(1)) ?? serviceType;
+        }
+        else
+        {
+            var firstArgument = invocation.ArgumentList.Arguments.FirstOrDefault();
+            if (firstArgument?.Expression is TypeOfExpressionSyntax typeOfService)
+            {
+                serviceType = GetFqNameFromTypeOf(typeOfService, semanticModel);
+                var keyArgument = invocation.ArgumentList.Arguments.ElementAtOrDefault(1);
+                if (keyArgument is not null)
+                {
+                    serviceKey = ExtractServiceKey(keyArgument.Expression, semanticModel);
+                }
+                var implArgument = invocation.ArgumentList.Arguments.ElementAtOrDefault(2);
+                if (implArgument?.Expression is TypeOfExpressionSyntax typeOfImpl)
+                {
+                    implementationType = GetFqNameFromTypeOf(typeOfImpl, semanticModel);
+                }
+                else
+                {
+                    implementationType = serviceType;
+                }
+            }
         }
 
-        var serviceKey = ExtractServiceKey(firstArgument.Expression, semanticModel);
-        if (string.IsNullOrWhiteSpace(serviceKey))
+        if (string.IsNullOrWhiteSpace(serviceKey) || string.IsNullOrWhiteSpace(serviceType))
         {
             return;
         }
@@ -251,13 +310,6 @@ public sealed class DiRegistrationScanner
         var isFactory = invocation.ArgumentList.Arguments
             .Skip(1)
             .Any(argument => argument.Expression is LambdaExpressionSyntax);
-
-        var serviceType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(0));
-        var implementationType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(1)) ?? serviceType;
-        if (string.IsNullOrWhiteSpace(serviceType))
-        {
-            return;
-        }
 
         var span = invocation.GetLocation().GetLineSpan();
         var registration = new RegistrationDto
@@ -365,10 +417,40 @@ public sealed class DiRegistrationScanner
 
             foreach (var implName in implementationTypes)
             {
-                var symbol = compilation.GetTypeByMetadataName(implName)
-                    ?? compilation.GlobalNamespace.GetNamespaceMembers()
-                        .SelectMany(GetAllTypes)
-                        .FirstOrDefault(type => type.ToDisplayString() == implName);
+                var arity = 0;
+                var cleanImplName = implName;
+                if (implName.Contains('<'))
+                {
+                    var genericStart = implName.IndexOf('<');
+                    var genericEnd = implName.LastIndexOf('>');
+                    if (genericEnd > genericStart)
+                    {
+                        var inside = implName.Substring(genericStart + 1, genericEnd - genericStart - 1).Trim();
+                        arity = inside.Length == 0 ? 1 : inside.Count(c => c == ',') + 1;
+                        cleanImplName = implName.Substring(0, genericStart);
+                    }
+                }
+
+                INamedTypeSymbol? symbol = null;
+                if (arity > 0)
+                {
+                    symbol = compilation.GetTypeByMetadataName($"{cleanImplName}`{arity}")
+                        ?? compilation.GlobalNamespace.GetNamespaceMembers()
+                            .SelectMany(GetAllTypes)
+                            .FirstOrDefault(type =>
+                            {
+                                var displayName = type.ToDisplayString();
+                                var typeBase = displayName.Contains('<') ? displayName.Substring(0, displayName.IndexOf('<')) : displayName;
+                                return (typeBase == cleanImplName || type.Name == cleanImplName) && type.Arity == arity;
+                            });
+                }
+                else
+                {
+                    symbol = compilation.GetTypeByMetadataName(implName)
+                        ?? compilation.GlobalNamespace.GetNamespaceMembers()
+                            .SelectMany(GetAllTypes)
+                            .FirstOrDefault(type => type.ToDisplayString() == implName);
+                }
 
                 if (symbol is not INamedTypeSymbol namedType)
                 {
@@ -433,9 +515,51 @@ public sealed class DiRegistrationScanner
             _ => "Transient",
         };
 
-    private static string? GetFqName(ITypeSymbol? typeSymbol) =>
-        typeSymbol?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+    private static string? GetFqName(ITypeSymbol? typeSymbol)
+    {
+        if (typeSymbol is null)
+        {
+            return null;
+        }
+
+        if (typeSymbol is INamedTypeSymbol namedType && namedType.IsGenericType)
+        {
+            if (namedType.IsUnboundGenericType || namedType.TypeArguments.All(t => t.TypeKind == TypeKind.TypeParameter))
+            {
+                var unbound = namedType.IsUnboundGenericType ? namedType : namedType.ConstructUnboundGenericType();
+                return unbound.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                    .Replace("global::", string.Empty);
+            }
+        }
+
+        return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
             .Replace("global::", string.Empty);
+    }
+
+    private static string? GetFqNameFromTypeOf(TypeOfExpressionSyntax typeOfExpr, SemanticModel semanticModel)
+    {
+        var typeSymbol = semanticModel.GetTypeInfo(typeOfExpr.Type).Type;
+        if (typeSymbol is not null)
+        {
+            return GetFqName(typeSymbol);
+        }
+
+        var raw = typeOfExpr.Type.ToString().Trim();
+        if (raw.StartsWith("global::", StringComparison.Ordinal))
+        {
+            raw = raw.Substring("global::".Length);
+        }
+        return NormalizeOpenGenericSyntax(raw);
+    }
+
+    private static string NormalizeOpenGenericSyntax(string typeName)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(typeName, @"<\s*,*\s*>", m =>
+        {
+            var commaCount = m.Value.Count(c => c == ',');
+            return "<" + new string(',', commaCount) + ">";
+        });
+    }
 
     private static void TryAddServiceDescriptorReplace(
         InvocationExpressionSyntax invocation,
@@ -465,9 +589,31 @@ public sealed class DiRegistrationScanner
             return;
         }
 
+        string? serviceType = null;
+        string? implementationType = null;
+
         var symbol = semanticModel.GetSymbolInfo(innerInvocation).Symbol as IMethodSymbol;
-        var serviceType = GetFqName(symbol?.TypeArguments.ElementAtOrDefault(0));
-        var implementationType = GetFqName(symbol?.TypeArguments.ElementAtOrDefault(1)) ?? serviceType;
+        if (symbol?.TypeArguments.Length > 0)
+        {
+            serviceType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(0));
+            implementationType = GetFqName(symbol.TypeArguments.ElementAtOrDefault(1)) ?? serviceType;
+        }
+        else
+        {
+            var typeOfArgs = innerInvocation.ArgumentList.Arguments
+                .Select(arg => arg.Expression)
+                .OfType<TypeOfExpressionSyntax>()
+                .ToList();
+
+            if (typeOfArgs.Count > 0)
+            {
+                serviceType = GetFqNameFromTypeOf(typeOfArgs[0], semanticModel);
+                implementationType = typeOfArgs.Count > 1
+                    ? GetFqNameFromTypeOf(typeOfArgs[1], semanticModel)
+                    : serviceType;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(serviceType))
         {
             return;

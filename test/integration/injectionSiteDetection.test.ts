@@ -132,4 +132,85 @@ builder.Services.AddScoped<IErrorLogging, ErrorLogging>();
       incremental.graph.registrations.some((registration) => registration.serviceType === 'IErrorLogging'),
     ).toBe(false);
   });
+
+  it('recognizes open-generic LogHelper registration and does not flag controllers injecting LogHelper<T>', async () => {
+    const files = loadCsFilesFromDirectory(FIXTURE_ROOT);
+    const programPath = path.join(FIXTURE_ROOT, 'Program.cs').replace(/\\/g, '/');
+    const accountControllerPath = path.join(FIXTURE_ROOT, 'Controllers/AccountController.cs').replace(/\\/g, '/');
+    const clauseControllerPath = path.join(FIXTURE_ROOT, 'Controllers/ClauseController.cs').replace(/\\/g, '/');
+    const logHelperPath = path.join(FIXTURE_ROOT, 'Services/LogHelper.cs').replace(/\\/g, '/');
+
+    const programWithLogHelper = `${files[programPath]}
+// Open-generic LogHelper<T> - inject LogHelper<T> instead of ILogger<T>.
+builder.Services.AddSingleton(typeof(LogHelper<>), typeof(LogHelper<>));
+`;
+
+    const accountController = `using DiMapper.Sample.Services;
+using Microsoft.AspNetCore.Mvc;
+
+namespace DiMapper.Sample.Controllers;
+
+public class AccountController : Controller
+{
+    private readonly LogHelper<AccountController> _logger;
+
+    public AccountController(LogHelper<AccountController> logger)
+    {
+        _logger = logger;
+    }
+}
+`;
+
+    const clauseController = `using DiMapper.Sample.Services;
+using Microsoft.AspNetCore.Mvc;
+
+namespace DiMapper.Sample.Controllers;
+
+public class ClauseController : Controller
+{
+    public ClauseController(LogHelper<ClauseController> logger)
+    {
+    }
+}
+`;
+
+    const logHelperSource = `namespace DiMapper.Sample.Services;
+
+public class LogHelper<T>
+{
+    public void Log(string message) {}
+}
+`;
+
+    const allFiles = {
+      ...files,
+      [programPath]: programWithLogHelper,
+      [accountControllerPath]: accountController,
+      [clauseControllerPath]: clauseController,
+      [logHelperPath]: logHelperSource,
+    };
+
+    const deps = createScanPipelineDeps(new InMemoryScannerFileAccess(allFiles));
+    const result = await runScanPipeline(
+      {
+        mode: 'full',
+        scopeRoot: SCOPE,
+        scannerVersion: 'regex-v1',
+        scanOptions: createScanOptions(),
+      },
+      deps,
+    );
+
+    expect(
+      result.graph.registrations.some((r) => r.serviceType === 'LogHelper<>'),
+    ).toBe(true);
+
+    const logHelperInjectionIssues = result.graph.issues.filter(
+      (issue) =>
+        issue.code === 'UNREGISTERED_INJECTION' &&
+        issue.relatedType?.startsWith('LogHelper<'),
+    );
+
+    expect(logHelperInjectionIssues).toHaveLength(0);
+  });
 });

@@ -1,6 +1,6 @@
 import type { Registration, RegistryLookupResult } from '../types';
 import { getRegistrationGroupKey, isKeyedRegistration } from '../util/registryKey';
-import { getSimpleTypeName } from '../util/typeNames';
+import { getGenericArity, getSimpleTypeName, toOpenGenericTypeName } from '../util/typeNames';
 
 export interface RegistryIndex {
   byExactType: Map<string, Registration[]>;
@@ -65,12 +65,48 @@ export function lookupInRegistry(
     }
   }
 
+  const paramArity = getGenericArity(paramType);
+  if (paramArity > 0) {
+    const openGeneric = toOpenGenericTypeName(paramType);
+    const openExact = index.byExactType.get(openGeneric)?.filter(eligible);
+    if (openExact && openExact.length > 0) {
+      return {
+        registration: openExact[0],
+        confidence: 'high',
+        matchKind: 'exact',
+      };
+    }
+
+    if (context.serviceKey) {
+      const keyedOpenExact = index.byGroupKey
+        .get(`${openGeneric}@${context.serviceKey}`)
+        ?.filter(eligible);
+      if (keyedOpenExact && keyedOpenExact.length > 0) {
+        return {
+          registration: keyedOpenExact[0],
+          confidence: 'high',
+          matchKind: 'exact',
+        };
+      }
+    }
+  }
+
   const paramSimple = getSimpleTypeName(paramType);
+  const matchesGenericArity = (regType: string): boolean => {
+    const regArity = getGenericArity(regType);
+    if (paramArity === 0) {
+      return regArity === 0;
+    }
+    return regArity === paramArity;
+  };
+
   const simpleMatches = index.all.filter(
     (registration) =>
       eligible(registration) &&
-      (getSimpleTypeName(registration.serviceType) === paramSimple ||
-        getSimpleTypeName(registration.implementationType) === paramSimple),
+      ((getSimpleTypeName(registration.serviceType) === paramSimple &&
+        matchesGenericArity(registration.serviceType)) ||
+        (getSimpleTypeName(registration.implementationType) === paramSimple &&
+          matchesGenericArity(registration.implementationType))),
   );
 
   if (simpleMatches.length === 1) {
@@ -106,10 +142,14 @@ export function lookupInRegistry(
     return usingResolved;
   }
 
+  const openParamType = paramArity > 0 ? toOpenGenericTypeName(paramType) : paramType;
   const suffixMatches = index.all.filter(
     (registration) =>
       eligible(registration) &&
-      (registration.serviceType.endsWith(`.${paramSimple}`) ||
+      matchesGenericArity(registration.serviceType) &&
+      (registration.serviceType.endsWith(`.${openParamType}`) ||
+        registration.implementationType.endsWith(`.${openParamType}`) ||
+        registration.serviceType.endsWith(`.${paramSimple}`) ||
         registration.implementationType.endsWith(`.${paramSimple}`)),
   );
 

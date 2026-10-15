@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>DiLoops.RoslynHost</RootNamespace>
     <AssemblyName>RoslynHost</AssemblyName>
-    <Version>0.2.0</Version>
+    <Version>0.2.2</Version>
   </PropertyGroup>
 
   <ItemGroup>

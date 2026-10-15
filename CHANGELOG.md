@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.2] - 2026-10-15
+
+### Added
+
+- Support for open-generic and `typeof(...)` service registrations (`AddSingleton(typeof(LogHelper<>), typeof(LogHelper<>))`, `AddScoped`, `AddTransient`, `TryAdd*`, keyed `typeof`, and `ServiceDescriptor` replacements) across both regex and Roslyn scanning engines.
+
+### Fixed
+
+- False positive `UNREGISTERED_INJECTION` and `UNREGISTERED` diagnostics when constructor injection sites use closed generic types (e.g. `LogHelper<AccountController>`) whose open generic counterpart (e.g. `LogHelper<>`) is registered in DI.
+
+---
+
 ## [0.2.1] - 2026-06-24
 
 ### Added
@@ -72,7 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Broader patterns: instance args, lambda factories, `ServiceDescriptor.Replace`
 - Extension branding as **DI-Loops**
 
-[Unreleased]: https://github.com/aryacodelabs/di-loops/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/aryacodelabs/di-loops/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/aryacodelabs/di-loops/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/aryacodelabs/di-loops/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/aryacodelabs/di-loops/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/aryacodelabs/di-loops/releases/tag/v0.1.0

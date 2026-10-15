@@ -161,4 +161,50 @@ public class HomeController {
       true,
     );
   });
+
+  it('does not flag open-generic controller injection when open-generic is registered', () => {
+    const logHelper = registration('logHelper', 'LogHelper<>', 'LogHelper<>', 'Singleton');
+    const issues = detectIssues({
+      registrations: [logHelper],
+      edges: [],
+      issues: [],
+      indexedAt: Date.now(),
+      scannerVersion: 'regex-v1',
+      detectionContext: {
+        implFileTexts: {},
+        implFileUris: {},
+        hostFileTexts: {
+          'file:///Controllers/AccountController.cs': `public class AccountController {
+  public AccountController(LogHelper<AccountController> log) {}
+}`,
+        },
+        scopeRoot: 'C:/app',
+        injectionSites: [
+          {
+            hostTypeName: 'AccountController',
+            parameterType: 'LogHelper<AccountController>',
+            fileUri: 'file:///Controllers/AccountController.cs',
+            range: { startLine: 1, startCol: 26, endLine: 1, endCol: 61 },
+          },
+        ],
+      },
+    });
+
+    expect(
+      issues.filter((issue) => issue.code === 'UNREGISTERED_INJECTION'),
+    ).toHaveLength(0);
+  });
+
+  it('detects captured scoped open-generic dependency in singleton', () => {
+    const worker = registration('worker', 'Worker', 'Worker', 'Singleton');
+    const logHelper = registration('log', 'LogHelper<>', 'LogHelper<>', 'Scoped');
+    const issues = detectIssues(
+      graph(
+        [worker, logHelper],
+        [{ fromRegistrationId: 'worker', toType: 'LogHelper<Worker>', resolution: 'constructor' }],
+      ),
+    );
+
+    expect(issues.some((i) => i.kind === 'CAPTURED_SCOPED' && i.relatedType === 'LogHelper<Worker>')).toBe(true);
+  });
 });

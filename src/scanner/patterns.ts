@@ -4,6 +4,7 @@
  */
 
 import { isOffsetInComment } from './commentUtils';
+import { isOpenGenericType, toOpenGenericTypeName } from '../util/typeNames';
 
 export interface RegistrationPatternMatch {
   lifetime: string;
@@ -19,6 +20,14 @@ export interface RegistrationPatternMatch {
 /** AddSingleton<T>() / AddSingleton<TInterface, TImpl>() */
 export const STANDARD_REGISTRATION_PATTERN =
   /\b(TryAdd|Add)(Singleton|Scoped|Transient)\s*<\s*([\w.]+)(?:\s*,\s*([\w.]+))?\s*>\s*\(\s*\)/gm;
+
+/** AddSingleton(typeof(TService), typeof(TImpl)) */
+export const TYPEOF_PAIR_REGISTRATION_PATTERN =
+  /\b(TryAdd|Add)(Singleton|Scoped|Transient)\s*\(\s*typeof\s*\(\s*([^)]+?)\s*\)\s*,\s*typeof\s*\(\s*([^)]+?)\s*\)\s*\)/gm;
+
+/** AddSingleton(typeof(TService)) */
+export const TYPEOF_SINGLE_REGISTRATION_PATTERN =
+  /\b(TryAdd|Add)(Singleton|Scoped|Transient)\s*\(\s*typeof\s*\(\s*([^)]+?)\s*\)\s*\)/gm;
 
 /** AddSingleton<T>(instance) with a non-lambda argument */
 export const INSTANCE_ARG_REGISTRATION_PATTERN =
@@ -44,9 +53,21 @@ export const NON_GENERIC_LAMBDA_FACTORY_PATTERN =
 export const SERVICE_DESCRIPTOR_REPLACE_PATTERN =
   /\.Replace\s*\(\s*ServiceDescriptor\.(Singleton|Scoped|Transient)\s*<\s*([\w.]+)(?:\s*,\s*([\w.]+))?\s*>\s*\(\s*\)/gm;
 
+/** services.Replace(ServiceDescriptor.Scoped(typeof(TService), typeof(TImpl))) */
+export const SERVICE_DESCRIPTOR_TYPEOF_REPLACE_PATTERN =
+  /\.Replace\s*\(\s*ServiceDescriptor\.(Singleton|Scoped|Transient)\s*\(\s*typeof\s*\(\s*([^)]+?)\s*\)(?:\s*,\s*typeof\s*\(\s*([^)]+?)\s*\))?\s*\)/gm;
+
 /** AddKeyedSingleton<TService, TImpl>("key") */
 export const KEYED_STANDARD_REGISTRATION_PATTERN =
   /\b(TryAdd|Add)Keyed(Singleton|Scoped|Transient)\s*<\s*([\w.]+)(?:\s*,\s*([\w.]+))?\s*>\s*\(\s*(?:"([^"]*)"|'([^']*)'|([\w.]+))\s*(?:,|\))/gm;
+
+/** AddKeyedSingleton(typeof(TService), "key", typeof(TImpl)) */
+export const KEYED_TYPEOF_PAIR_REGISTRATION_PATTERN =
+  /\b(TryAdd|Add)Keyed(Singleton|Scoped|Transient)\s*\(\s*typeof\s*\(\s*([^)]+?)\s*\)\s*,\s*(?:"([^"]*)"|'([^']*)'|([\w.]+))\s*,\s*typeof\s*\(\s*([^)]+?)\s*\)\s*\)/gm;
+
+/** AddKeyedSingleton(typeof(TService), "key") */
+export const KEYED_TYPEOF_SINGLE_REGISTRATION_PATTERN =
+  /\b(TryAdd|Add)Keyed(Singleton|Scoped|Transient)\s*\(\s*typeof\s*\(\s*([^)]+?)\s*\)\s*,\s*(?:"([^"]*)"|'([^']*)'|([\w.]+))\s*\)/gm;
 
 /** AddKeyedSingleton<TService, TImpl>("key", (sp, key) => ...) */
 export const KEYED_LAMBDA_FACTORY_PATTERN =
@@ -64,6 +85,8 @@ export function findRegistrationMatches(
   const matches: RegistrationPatternMatch[] = [];
 
   collectStandardMatches(text, matches);
+  collectTypeofPairMatches(text, matches);
+  collectTypeofSingleMatches(text, matches);
   collectInstanceArgMatches(text, matches);
   collectLambdaPairFactoryMatches(text, matches);
   collectFactoryMatches(text, matches);
@@ -71,10 +94,13 @@ export function findRegistrationMatches(
   collectNonGenericLambdaFactoryMatches(text, matches);
   if (options.includeServiceDescriptorReplace !== false) {
     collectServiceDescriptorReplaceMatches(text, matches);
+    collectServiceDescriptorTypeofReplaceMatches(text, matches);
   }
   if (options.enableKeyed === true) {
     collectKeyedLambdaFactoryMatches(text, matches);
     collectKeyedStandardMatches(text, matches);
+    collectKeyedTypeofPairMatches(text, matches);
+    collectKeyedTypeofSingleMatches(text, matches);
   }
 
   return matches.sort((a, b) => a.startOffset - b.startOffset);
@@ -200,6 +226,81 @@ function extractKeyedServiceKey(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+export function cleanTypeOfString(rawType: string): string {
+  let cleaned = rawType.trim();
+  if (cleaned.startsWith('global::')) {
+    cleaned = cleaned.slice('global::'.length).trim();
+  }
+  if (isOpenGenericType(cleaned)) {
+    return toOpenGenericTypeName(cleaned);
+  }
+  return cleaned;
+}
+
+function collectTypeofPairMatches(text: string, matches: RegistrationPatternMatch[]): void {
+  for (const match of text.matchAll(TYPEOF_PAIR_REGISTRATION_PATTERN)) {
+    const serviceType = cleanTypeOfString(match[3]);
+    const implementationType = cleanTypeOfString(match[4]);
+    pushMatch(matches, text, match, {
+      lifetime: match[2],
+      serviceType,
+      implementationType,
+      isTryAdd: match[1] === 'TryAdd',
+      isFactory: false,
+    });
+  }
+}
+
+function collectTypeofSingleMatches(text: string, matches: RegistrationPatternMatch[]): void {
+  for (const match of text.matchAll(TYPEOF_SINGLE_REGISTRATION_PATTERN)) {
+    const serviceType = cleanTypeOfString(match[3]);
+    pushMatch(matches, text, match, {
+      lifetime: match[2],
+      serviceType,
+      implementationType: serviceType,
+      isTryAdd: match[1] === 'TryAdd',
+      isFactory: false,
+    });
+  }
+}
+
+function collectKeyedTypeofPairMatches(text: string, matches: RegistrationPatternMatch[]): void {
+  for (const match of text.matchAll(KEYED_TYPEOF_PAIR_REGISTRATION_PATTERN)) {
+    const key = extractKeyedServiceKey(match, 4, 5, 6);
+    if (!key) {
+      continue;
+    }
+    const serviceType = cleanTypeOfString(match[3]);
+    const implementationType = cleanTypeOfString(match[7]);
+    pushMatch(matches, text, match, {
+      lifetime: match[2],
+      serviceType,
+      implementationType,
+      isTryAdd: match[1] === 'TryAdd',
+      isFactory: false,
+      key,
+    });
+  }
+}
+
+function collectKeyedTypeofSingleMatches(text: string, matches: RegistrationPatternMatch[]): void {
+  for (const match of text.matchAll(KEYED_TYPEOF_SINGLE_REGISTRATION_PATTERN)) {
+    const key = extractKeyedServiceKey(match, 4, 5, 6);
+    if (!key) {
+      continue;
+    }
+    const serviceType = cleanTypeOfString(match[3]);
+    pushMatch(matches, text, match, {
+      lifetime: match[2],
+      serviceType,
+      implementationType: serviceType,
+      isTryAdd: match[1] === 'TryAdd',
+      isFactory: false,
+      key,
+    });
+  }
+}
+
 function collectServiceDescriptorReplaceMatches(text: string, matches: RegistrationPatternMatch[]): void {
   for (const match of text.matchAll(SERVICE_DESCRIPTOR_REPLACE_PATTERN)) {
     const tokenIndex = match[0].indexOf('Replace');
@@ -216,6 +317,33 @@ function collectServiceDescriptorReplaceMatches(text: string, matches: Registrat
       lifetime: match[1],
       serviceType: match[2],
       implementationType: match[3] ?? match[2],
+      isTryAdd: false,
+      isFactory: false,
+      matchText: text.slice(startOffset, (match.index ?? 0) + match[0].length),
+      startOffset,
+    });
+  }
+}
+
+function collectServiceDescriptorTypeofReplaceMatches(text: string, matches: RegistrationPatternMatch[]): void {
+  for (const match of text.matchAll(SERVICE_DESCRIPTOR_TYPEOF_REPLACE_PATTERN)) {
+    const tokenIndex = match[0].indexOf('Replace');
+    const startOffset = (match.index ?? 0) + Math.max(tokenIndex, 0);
+    if (isOffsetInComment(text, startOffset)) {
+      continue;
+    }
+
+    if (matches.some((existing) => existing.startOffset === startOffset)) {
+      continue;
+    }
+
+    const serviceType = cleanTypeOfString(match[2]);
+    const implementationType = match[3] ? cleanTypeOfString(match[3]) : serviceType;
+
+    matches.push({
+      lifetime: match[1],
+      serviceType,
+      implementationType,
       isTryAdd: false,
       isFactory: false,
       matchText: text.slice(startOffset, (match.index ?? 0) + match[0].length),

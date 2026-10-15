@@ -94,4 +94,62 @@ describe('lookupInRegistry', () => {
     expect(keyed.registration?.implementationType).toBe('RedisCache');
     expect(keyed.registration?.key).toBe('primary');
   });
+
+  it('resolves closed generic parameter to exact open-generic registration', () => {
+    const index = buildRegistryIndex([reg('LogHelper<>', 'LogHelper<>')]);
+
+    const result = lookupInRegistry('LogHelper<AccountController>', index, {
+      fileUri: 'file:///AccountController.cs',
+      fileText: 'public class AccountController { }',
+      scopeRoot: 'C:/app',
+    });
+
+    expect(result.matchKind).toBe('exact');
+    expect(result.confidence).toBe('high');
+    expect(result.registration?.serviceType).toBe('LogHelper<>');
+  });
+
+  it('resolves namespaced open-generic registration using simple name and arity', () => {
+    const index = buildRegistryIndex([reg('Ziji.Forms.App.LogHelper<>', 'Ziji.Forms.App.LogHelper<>')]);
+
+    const result = lookupInRegistry('LogHelper<ClauseController>', index, {
+      fileUri: 'file:///ClauseController.cs',
+      fileText: 'using Ziji.Forms.App;\npublic class ClauseController { }',
+      scopeRoot: 'C:/app',
+    });
+
+    expect(result.registration?.serviceType).toBe('Ziji.Forms.App.LogHelper<>');
+    expect(result.confidence).toBe('medium');
+  });
+
+  it('enforces generic arity matching (does not match different arity or non-generic)', () => {
+    const index = buildRegistryIndex([
+      reg('IConverter', 'SimpleConverter'),
+      reg('IRepository<>', 'SqlRepository<>'),
+    ]);
+
+    // Arity 1 requesting non-generic registration
+    const genericReq = lookupInRegistry('IConverter<string>', index, {
+      fileUri: 'file:///test.cs',
+      fileText: '',
+      scopeRoot: 'C:/app',
+    });
+    expect(genericReq.registration).toBeUndefined();
+
+    // Arity 2 requesting arity 1 registration
+    const arity2Req = lookupInRegistry('IRepository<Order, int>', index, {
+      fileUri: 'file:///test.cs',
+      fileText: '',
+      scopeRoot: 'C:/app',
+    });
+    expect(arity2Req.registration).toBeUndefined();
+
+    // Arity 1 requesting arity 1 registration
+    const arity1Req = lookupInRegistry('IRepository<Order>', index, {
+      fileUri: 'file:///test.cs',
+      fileText: '',
+      scopeRoot: 'C:/app',
+    });
+    expect(arity1Req.registration?.serviceType).toBe('IRepository<>');
+  });
 });
